@@ -87,7 +87,6 @@ def lambda_handler(event, context):
 
 
 def check_instance_type(event: dict) -> bool:
-    print('check instance Type')
     try:
         tag_set = [item['key'] for item in [tags for tags in
                                             event['detail']['responseElements']['instancesSet'][
@@ -103,7 +102,6 @@ def check_instance_type(event: dict) -> bool:
 
 
 def check_instance_state(event: dict):
-    print('Check instance State')
     instance_id = []
     for item in event.get('detail').get('responseElements').get('instancesSet').get('items'):
         instance_id.append(item.get('instanceId'))
@@ -142,7 +140,6 @@ def list_policy_from_bucket(stage: str, team: str) -> bool:
 
 
 def get_info(event: dict) -> tuple:
-    print('get_info Group')
     instance_id = []
     stage = ''
     app = ''
@@ -163,7 +160,6 @@ def get_info(event: dict) -> tuple:
 
 
 def update_group(stage: str, team: str, json_data: dict) -> bool:
-    print('Update Group')
     client = boto3.client('iam')
     try:
         json_doc = json.dumps(json_data)
@@ -180,7 +176,6 @@ def update_group(stage: str, team: str, json_data: dict) -> bool:
 
 
 def update_policy(instance_id: list, json_data: dict) -> tuple:
-    print('Update policy')
     temp_list = []
     try:
         for i_item in json_data.get('Statement'):
@@ -202,7 +197,6 @@ def update_policy(instance_id: list, json_data: dict) -> tuple:
 
 
 def get_file_from_bucket(stage: str, team: str):
-    print('Get file from bucket')
     s3 = boto3.resource('s3')
     bucket_name = 'sessionmb'
     file_name = 'policy-{}-{}.json'.format(stage, team)
@@ -216,25 +210,18 @@ def get_file_from_bucket(stage: str, team: str):
 
 
 def create_policy_file(stage: str, team: str, json_data: dict):
-    print('Create policy file')
     client = boto3.client('s3')
     bucket_name = 'sessionmb'
-    print("step1")
     file_name = 'policy-{}-{}.json'.format(stage, team)
-    print("step2")
     try:
         json_doc = json.dumps(json_data).encode('utf-8')
-        print("step3")
         client.put_object(Bucket=bucket_name, Body=json_doc, Key=file_name)
-        print("step4")
-        print(file_name)
         return file_name, True
     except Boto3Error:
         return None, False
 
 
 def clean_policy(instance_id: str):
-    print('Clean policy')
     client = boto3.client('s3')
     s3 = boto3.resource('s3')
     bucket_name = 'sessionmb'
@@ -245,7 +232,6 @@ def clean_policy(instance_id: str):
             MaxKeys=10000,
         ).get('Contents')
         if objects_response is None:
-            print('Trigger is activated')
             search_inline_policy(instance_id=instance_id)
             objects_response = client.list_objects_v2(
                 Bucket=bucket_name,
@@ -274,7 +260,6 @@ def clean_policy(instance_id: str):
 
 def search_inline_policy(instance_id: str):
     teams_list = os.environ.get('TEAMS')
-    print('Search inline policy')
     client = boto3.client('iam')
     for item in [item for item in
                  [item.get('GroupName') for item in client.list_groups(MaxItems=1000).get('Groups')]
