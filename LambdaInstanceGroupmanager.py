@@ -1,6 +1,7 @@
 import boto3
 import json
 from boto3.exceptions import Boto3Error
+import os
 
 
 def lambda_handler(event, context):
@@ -218,16 +219,22 @@ def create_policy_file(stage: str, team: str, json_data: dict):
     print('Create policy file')
     client = boto3.client('s3')
     bucket_name = 'sessionmb'
+    print("step1")
     file_name = 'policy-{}-{}.json'.format(stage, team)
+    print("step2")
     try:
         json_doc = json.dumps(json_data).encode('utf-8')
+        print("step3")
         client.put_object(Bucket=bucket_name, Body=json_doc, Key=file_name)
+        print("step4")
+        print(file_name)
         return file_name, True
     except Boto3Error:
         return None, False
 
 
 def clean_policy(instance_id: str):
+    print('Clean policy')
     client = boto3.client('s3')
     s3 = boto3.resource('s3')
     bucket_name = 'sessionmb'
@@ -239,7 +246,11 @@ def clean_policy(instance_id: str):
         ).get('Contents')
         if objects_response is None:
             print('Trigger is activated')
-            return False
+            search_inline_policy(instance_id=instance_id)
+            objects_response = client.list_objects_v2(
+                Bucket=bucket_name,
+                MaxKeys=10000,
+            ).get('Contents')
         for item in objects_response:
             objects_list.append(item.get('Key'))
         for file_object in objects_list:
@@ -259,3 +270,27 @@ def clean_policy(instance_id: str):
                             return True
     except Boto3Error:
         return False
+
+
+def search_inline_policy(instance_id: str):
+    teams_list = os.environ.get('TEAMS')
+    print('Search inline policy')
+    client = boto3.client('iam')
+    for item in [item for item in
+                 [item.get('GroupName') for item in client.list_groups(MaxItems=1000).get('Groups')]
+                 if item.split('-')[0].lower() in teams_list]:
+
+        try:
+            response = client.get_group_policy(GroupName=item, PolicyName='SessionManagerAccess')
+            for p_item in response.get('PolicyDocument').get('Statement'):
+                if p_item.get('Sid') == 'SessionManager':
+                    for r_item in p_item.get('Resource'):
+                        if r_item.split('/')[1] == instance_id:
+                            team = item.split('-')[0].lower()
+                            stage = item.split('-')[1].lower()
+                            json_body = response.get('PolicyDocument')
+                            return create_policy_file(stage=stage, team=team, json_data=json_body)
+                else:
+                    pass
+        except client.exceptions.NoSuchEntityException:
+            pass
